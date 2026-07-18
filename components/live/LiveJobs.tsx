@@ -15,7 +15,13 @@ export function LiveJobs() {
 
   useEffect(() => {
     const loadJobs = async () => {
-      const { data } = await createClient()
+      const supabase = createClient();
+      if (!supabase) {
+        setJobs([]);
+        return;
+      }
+
+      const { data } = await supabase
         .from("jobs")
         .select("*")
         .eq("published", true)

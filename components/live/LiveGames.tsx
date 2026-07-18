@@ -16,7 +16,12 @@ export function LiveGames() {
 
   useEffect(() => {
     const loadGames = async () => {
-      const { data } = await createClient()
+      const supabase = createClient();
+      if (!supabase) {
+        setGames([]);
+        return;
+      }
+      const { data } = await supabase
         .from("games")
         .select("*")
         .eq("published", true)

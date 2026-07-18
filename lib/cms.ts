@@ -21,6 +21,7 @@ export function mapGame(record: Record<string, unknown>, locale: Locale): Game {
     status: pick(record.status_i18n as I18nRecord, record.status as string, locale),
     imageUrl: (record.cover_image_url as string) || undefined,
     videoUrl: (record.trailer_url as string) || undefined,
+    downloadUrl: (record.download_url as string) || undefined,
   };
 }
 

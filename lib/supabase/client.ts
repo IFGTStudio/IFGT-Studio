@@ -11,14 +11,8 @@ export function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!url) {
-    throw new Error("NEXT_PUBLIC_SUPABASE_URL is missing");
-  }
-
-  if (!key) {
-    throw new Error(
-      "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY is missing"
-    );
+  if (!url || !key) {
+    return null;
   }
 
   client = createBrowserClient(url, key);

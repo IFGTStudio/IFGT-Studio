@@ -20,7 +20,13 @@ export function LiveAnnouncements() {
 
   useEffect(() => {
     const loadItems = async () => {
-      const { data } = await createClient()
+      const supabase = createClient();
+      if (!supabase) {
+        setItems([]);
+        return;
+      }
+
+      const { data } = await supabase
         .from("announcements")
         .select("*")
         .eq("published", true)

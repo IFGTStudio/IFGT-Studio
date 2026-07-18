@@ -1,17 +1,118 @@
 "use client";
 import { motion } from "framer-motion";
 import { ArrowDown } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
 import { Container } from "@/components/ui/Container";
 import { useLocale } from "@/hooks/useLocale";
 import { heroLabels } from "@/lib/i18n";
+import { useSiteSettings } from "@/lib/use-site-settings";
 
 export function Hero() {
   const locale = useLocale();
   const labels = heroLabels[locale];
+  const { getSetting } = useSiteSettings();
+  const heroBg = getSetting("hero.backgroundImage");
+  const heroVideo = getSetting("hero.backgroundVideo");
+  const heroGalleryRaw = getSetting("hero.gallery");
+  const [heroGallery, setHeroGallery] = useState<string[]>([]);
+  const [currentGalleryIndex, setCurrentGalleryIndex] = useState(0);
+
+  // Parse gallery from settings
+  useEffect(() => {
+    if (heroGalleryRaw) {
+      try {
+        setHeroGallery(JSON.parse(heroGalleryRaw));
+      } catch {
+        setHeroGallery([]);
+      }
+    }
+  }, [heroGalleryRaw]);
+
+  // Auto-play gallery
+  useEffect(() => {
+    if (heroGallery.length === 0) return;
+    const interval = setInterval(() => {
+      setCurrentGalleryIndex((prev) => (prev + 1) % heroGallery.length);
+    }, 5000); // Change every 5 seconds
+    return () => clearInterval(interval);
+  }, [heroGallery]);
+
+  // Handle background display priority: Video > Gallery > Image
+  const hasVideo = heroVideo?.trim();
+  const hasGallery = heroGallery.length > 0;
+  const hasImage = heroBg?.trim();
 
   return (
     <section className="relative flex min-h-[820px] items-end overflow-hidden pt-20">
+      {/* Background Video */}
+      {hasVideo && (
+        <div className="absolute inset-0">
+          {heroVideo.includes("youtube.com") || heroVideo.includes("youtu.be") ? (
+            <iframe
+              src={`${heroVideo.replace("watch?v=", "embed/").replace("youtu.be/", "youtube.com/embed/")}?autoplay=1&mute=1&loop=1&playlist=${heroVideo.split("v=")[1] || heroVideo.split("/").pop()}&controls=0&showinfo=0&rel=0&modestbranding=1`}
+              className="w-full h-full object-cover"
+              title="Hero Background Video"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          ) : (
+            <video
+              src={heroVideo}
+              className="w-full h-full object-cover"
+              autoPlay
+              muted
+              loop
+              playsInline
+            />
+          )}
+          <div className="absolute inset-0 bg-black/60" />
+        </div>
+      )}
+      {/* Background Gallery (if no video) */}
+      {!hasVideo && hasGallery && (
+        <div className="absolute inset-0">
+          {heroGallery.map((url, index) => (
+            <div
+              key={index}
+              className={`absolute inset-0 transition-opacity duration-1000 ${
+                index === currentGalleryIndex ? "opacity-100" : "opacity-0"
+              }`}
+            >
+              {url.includes(".mp4") || url.includes(".webm") || url.includes(".mov") ? (
+                <video
+                  src={url}
+                  className="w-full h-full object-cover"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                />
+              ) : (
+                <img
+                  src={url}
+                  alt="Hero Gallery Background"
+                  className="w-full h-full object-cover"
+                />
+              )}
+            </div>
+          ))}
+          <div className="absolute inset-0 bg-black/60" />
+        </div>
+      )}
+      {/* Background Image (if no video or gallery) */}
+      {!hasVideo && !hasGallery && hasImage && (
+        <div className="absolute inset-0">
+          <img
+            src={heroBg}
+            alt="Hero Background"
+            className="w-full h-full object-cover opacity-100"
+          />
+          <div className="absolute inset-0 bg-black/60" />
+        </div>
+      )}
+
       <div className="absolute inset-0 grid-bg opacity-20" />
       <div className="absolute left-[10%] top-[10%] h-[35rem] w-[35rem] rounded-full bg-blue-600/20 blur-[140px]" />
       <div className="absolute right-[-15%] top-[20%] h-[30rem] w-[30rem] rounded-full bg-indigo-500/20 blur-[140px]" />

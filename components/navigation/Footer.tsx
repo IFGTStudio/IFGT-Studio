@@ -11,6 +11,13 @@ export function Footer() {
   const locale = useLocale();
   const nav = navLabels[locale];
   const { getSetting } = useSiteSettings();
+
+  // Sosyal medya bağlantıları - site settings'ten alınıyor
+  const socialLinks = [
+    { icon: Instagram, href: getSetting("social.instagram") },
+    { icon: Linkedin, href: getSetting("social.linkedin") },
+    { icon: Youtube, href: getSetting("social.youtube") },
+  ];
 	
   return (
     <footer className="border-t border-white/[.08] bg-[#080808] py-14">
@@ -41,10 +48,12 @@ export function Footer() {
               {getSetting("footer.connect")}
             </p>
             <div className="flex gap-3">
-              {[Instagram, Linkedin, Youtube].map((Icon, i) => (
-                <a key={i} href="https://instagram.com" target="_blank" rel="noreferrer" className="rounded-full border border-white/10 p-2.5 text-zinc-300 transition hover:border-blue-500 hover:text-white">
-                  <Icon size={16} />
-                </a>
+              {socialLinks.map(({ icon: Icon, href }, i) => (
+                href && (
+                  <a key={i} href={href} target="_blank" rel="noreferrer" className="rounded-full border border-white/10 p-2.5 text-zinc-300 transition hover:border-blue-500 hover:text-white">
+                    <Icon size={16} />
+                  </a>
+                )
               ))}
             </div>
             <Link href="/contact" className="mt-5 inline-flex items-center gap-1 text-sm text-blue-400">
@@ -55,9 +64,9 @@ export function Footer() {
         <div className="mt-14 flex flex-col justify-between gap-3 border-t border-white/[.08] pt-5 text-xs text-zinc-600 sm:flex-row">
           <span>{getSetting("footer.rights")}</span>
           <div className="flex gap-4">
-            <a href="/support">{getSetting("footer.privacy")}</a>
-            <a href="/support">{getSetting("footer.terms")}</a>
-            <a href="/support">{getSetting("footer.accessibility")}</a>
+            <Link href="/privacy">{getSetting("footer.privacy")}</Link>
+            <Link href="/terms">{getSetting("footer.terms")}</Link>
+            <Link href="/accessibility">{getSetting("footer.accessibility")}</Link>
           </div>
         </div>
       </Container>

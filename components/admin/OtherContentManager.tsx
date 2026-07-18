@@ -23,9 +23,15 @@ export function OtherContentManager() {
   const [items, setItems] = useState<Item[]>([]);
   const [message, setMessage] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const supabase = createClient();
 
   const load = async () => {
-    const { data } = await createClient()
+    if (!supabase) {
+      setItems([]);
+      return;
+    }
+
+    const { data } = await supabase
       .from(kind)
       .select("*")
       .order("created_at", { ascending: false });
@@ -37,6 +43,10 @@ export function OtherContentManager() {
   }, [kind]);
 
   async function save(data: FormData) {
+    if (!supabase) {
+      setMessage("İçerik yönetimi için Supabase yapılandırması gerekiyor.");
+      return;
+    }
     const title_en = String(data.get("title_en"));
     const title_tr = String(data.get("title_tr"));
     const title = title_en || title_tr;
@@ -71,14 +81,14 @@ export function OtherContentManager() {
           };
 
     if (editingId) {
-      const { error } = await createClient()
+      const { error } = await supabase
         .from(kind)
         .update(payload as never)
         .eq("id", editingId);
       setMessage(error ? error.message : "Güncellendi.");
       setEditingId(null);
     } else {
-      const { error } = await createClient()
+      const { error } = await supabase
         .from(kind)
         .insert(payload as never);
       setMessage(error ? error.message : "Kaydedildi.");
@@ -89,7 +99,9 @@ export function OtherContentManager() {
   }
 
   async function togglePublish(id: string, published: boolean) {
-    const { error } = await createClient()
+    if (!supabase) return;
+
+    const { error } = await supabase
       .from(kind)
       .update({ published: !published })
       .eq("id", id);
@@ -98,7 +110,8 @@ export function OtherContentManager() {
 
   async function deleteItem(id: string) {
     if (!confirm("Silmek istediğine emin misin?")) return;
-    const { error } = await createClient().from(kind).delete().eq("id", id);
+    if (!supabase) return;
+    const { error } = await supabase.from(kind).delete().eq("id", id);
     if (!error) load();
   }
 
@@ -294,6 +307,11 @@ export function OtherContentManager() {
             ? "Geliştirici içerikleri"
             : "İlanlar"}
         </div>
+        {!supabase && (
+          <div className="p-5 text-sm text-zinc-500">
+            Bu bölüm için Supabase ortam değişkenleri gerekiyor.
+          </div>
+        )}
         <div className="divide-y divide-white/[.07]">
           {items.map((item) => (
             <div

@@ -1,12 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, EyeOff, Upload, X, Play, Instagram, Linkedin, Youtube, Gamepad2, Monitor, Smartphone, AppWindow, Globe, Trophy } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 type Tab = "games" | "news";
-type Item = { 
-  id: string; 
-  title: string; 
+type Item = {
+  id: string;
+  title: string;
   published: boolean;
   title_i18n?: { tr?: string; en?: string };
   genre_i18n?: { tr?: string; en?: string };
@@ -22,18 +22,39 @@ type Item = {
   team_i18n?: { tr?: string; en?: string };
   location_i18n?: { tr?: string; en?: string };
   apply_url?: string;
+  image_gallery?: string[];
+  video_gallery?: string[];
 };
+
+// Platform icons and labels
+const platforms = [
+  { key: "steam", label: "Steam", icon: Gamepad2 },
+  { key: "epic", label: "Epic Games", icon: Globe },
+  { key: "appstore", label: "App Store", icon: AppWindow },
+  { key: "playstore", label: "Play Store", icon: Smartphone },
+  { key: "xbox", label: "Xbox", icon: Trophy },
+  { key: "ps", label: "PlayStation", icon: Monitor },
+] as const;
 
 export function ContentManager() {
   const [tab, setTab] = useState<Tab>("games");
   const [items, setItems] = useState<Item[]>([]);
   const [message, setMessage] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [imageGallery, setImageGallery] = useState<string[]>([]);
+  const [videoGallery, setVideoGallery] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const supabase = createClient();
 
   const table = tab === "games" ? "games" : "news_posts";
 
   const load = async () => {
-    const { data } = await createClient()
+    if (!supabase) {
+      setItems([]);
+      return;
+    }
+
+    const { data } = await supabase
       .from(table)
       .select("*")
       .order("created_at", { ascending: false });
@@ -44,50 +65,65 @@ export function ContentManager() {
     load();
   }, [tab]);
 
-  const platforms = [
-    { key: "steam", label: "Steam" },
-    { key: "epic", label: "Epic Games" },
-    { key: "appstore", label: "App Store" },
-    { key: "playstore", label: "Play Store" },
-    { key: "xbox", label: "Xbox" },
-    { key: "ps", label: "PlayStation" },
-  ] as const;
+  // Upload file to Supabase Storage
+  const handleFileUpload = async (file: File) => {
+    if (!supabase) return;
+    setUploading(true);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const { data, error } = await supabase.storage
+        .from("media")
+        .upload(fileName, file);
+      if (error) throw error;
+      const { data: urlData } = supabase.storage
+        .from("media")
+        .getPublicUrl(data.path);
+      return urlData.publicUrl;
+    } catch (error) {
+      console.error("Upload failed:", error);
+      setMessage("Dosya yükleme başarısız!");
+    } finally {
+      setUploading(false);
+    }
+  };
 
-  async function save(data: FormData) {
-    const title_en = String(data.get("title_en"));
-    const title_tr = String(data.get("title_tr"));
+  const save = async (formData: FormData) => {
+    if (!supabase) {
+      setMessage("İçerik yönetimi için Supabase yapılandırması gerekiyor.");
+      return;
+    }
+    const title_en = String(formData.get("title_en"));
+    const title_tr = String(formData.get("title_tr"));
     const title = title_en || title_tr;
     const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-    const published = data.get("published") === "on";
-    
+    const published = formData.get("published") === "on";
+
     // Platform links to JSON
     const platform_links: Record<string, string> = {};
     for (const p of platforms) {
-      const url = String(data.get(`platform_${p.key}`) || "");
+      const url = String(formData.get(`platform_${p.key}`) || "");
       if (url) {
         platform_links[p.key] = url;
       }
     }
-    
+
     // Build i18n JSONB objects
     const title_i18n = { tr: title_tr || title_en, en: title_en || title_tr };
 
     if (editingId) {
       if (tab === "games") {
-        const genre_en = String(data.get("genre_en"));
-        const genre_tr = String(data.get("genre_tr"));
-        const platform_en = String(data.get("platform_en"));
-        const platform_tr = String(data.get("platform_tr"));
-        const desc_en = String(data.get("description_en"));
-        const desc_tr = String(data.get("description_tr"));
-        const status_en = String(data.get("status_en"));
-        const status_tr = String(data.get("status_tr"));
+        const genre_en = String(formData.get("genre_en"));
+        const genre_tr = String(formData.get("genre_tr"));
+        const desc_en = String(formData.get("description_en"));
+        const desc_tr = String(formData.get("description_tr"));
+        const status_en = String(formData.get("status_en"));
+        const status_tr = String(formData.get("status_tr"));
         const genre_i18n = { tr: genre_tr || genre_en, en: genre_en || genre_tr };
-        const platform_i18n = { tr: platform_tr || platform_en, en: platform_en || platform_tr };
         const description_i18n = { tr: desc_tr || desc_en, en: desc_en || desc_tr };
         const status_i18n = { tr: status_tr || status_en, en: status_en || status_tr };
-        
-        const { error } = await createClient()
+
+        const { error } = await supabase
           .from("games")
           .update({
             title,
@@ -95,30 +131,31 @@ export function ContentManager() {
             published,
             genre: genre_en || genre_tr,
             genre_i18n,
-            platform: platform_en || platform_tr,
-            platform_i18n,
             description: desc_en || desc_tr,
             description_i18n,
             status: status_en || status_tr,
             status_i18n,
-            cover_image_url: String(data.get("imageUrl")) || null,
-            trailer_url: String(data.get("videoUrl")) || null,
-            platform_links,
+            cover_image_url: String(formData.get("imageUrl")) || null,
+                    trailer_url: String(formData.get("videoUrl")) || null,
+                    download_url: String(formData.get("downloadUrl")) || null,
+                    platform_links,
+                    image_gallery: imageGallery,
+                    video_gallery: videoGallery,
           })
           .eq("id", editingId);
         setMessage(error ? error.message : "Oyun güncellendi.");
       } else {
-        const cat_en = String(data.get("category_en"));
-        const cat_tr = String(data.get("category_tr"));
-        const excerpt_en = String(data.get("excerpt_en"));
-        const excerpt_tr = String(data.get("excerpt_tr"));
-        const body_en = String(data.get("body_en"));
-        const body_tr = String(data.get("body_tr"));
+        const cat_en = String(formData.get("category_en"));
+        const cat_tr = String(formData.get("category_tr"));
+        const excerpt_en = String(formData.get("excerpt_en"));
+        const excerpt_tr = String(formData.get("excerpt_tr"));
+        const body_en = String(formData.get("body_en"));
+        const body_tr = String(formData.get("body_tr"));
         const category_i18n = { tr: cat_tr || cat_en, en: cat_en || cat_tr };
         const excerpt_i18n = { tr: excerpt_tr || excerpt_en, en: excerpt_en || excerpt_tr };
         const body_i18n = { tr: body_tr || body_en, en: body_en || body_tr };
-        
-        const { error } = await createClient()
+
+        const { error } = await supabase
           .from("news_posts")
           .update({
             title,
@@ -136,22 +173,21 @@ export function ContentManager() {
         setMessage(error ? error.message : "Haber güncellendi.");
       }
       setEditingId(null);
+      setImageGallery([]);
+      setVideoGallery([]);
     } else {
       if (tab === "games") {
-        const genre_en = String(data.get("genre_en"));
-        const genre_tr = String(data.get("genre_tr"));
-        const platform_en = String(data.get("platform_en"));
-        const platform_tr = String(data.get("platform_tr"));
-        const desc_en = String(data.get("description_en"));
-        const desc_tr = String(data.get("description_tr"));
-        const status_en = String(data.get("status_en"));
-        const status_tr = String(data.get("status_tr"));
+        const genre_en = String(formData.get("genre_en"));
+        const genre_tr = String(formData.get("genre_tr"));
+        const desc_en = String(formData.get("description_en"));
+        const desc_tr = String(formData.get("description_tr"));
+        const status_en = String(formData.get("status_en"));
+        const status_tr = String(formData.get("status_tr"));
         const genre_i18n = { tr: genre_tr || genre_en, en: genre_en || genre_tr };
-        const platform_i18n = { tr: platform_tr || platform_en, en: platform_en || platform_tr };
         const description_i18n = { tr: desc_tr || desc_en, en: desc_en || desc_tr };
         const status_i18n = { tr: status_tr || status_en, en: status_en || status_tr };
-        
-        const { error } = await createClient()
+
+        const { error } = await supabase
           .from("games")
           .insert({
             title,
@@ -160,30 +196,31 @@ export function ContentManager() {
             published,
             genre: genre_en || genre_tr,
             genre_i18n,
-            platform: platform_en || platform_tr,
-            platform_i18n,
             description: desc_en || desc_tr,
             description_i18n,
             status: status_en || status_tr,
             status_i18n,
             cover_gradient: "from-blue-950 via-slate-900 to-cyan-500",
-            cover_image_url: String(data.get("imageUrl")) || null,
-            trailer_url: String(data.get("videoUrl")) || null,
-            platform_links,
+            cover_image_url: String(formData.get("imageUrl")) || null,
+                    trailer_url: String(formData.get("videoUrl")) || null,
+                    download_url: String(formData.get("downloadUrl")) || null,
+                    platform_links,
+                    image_gallery: imageGallery,
+                    video_gallery: videoGallery,
           });
         setMessage(error ? error.message : "Oyun kaydedildi.");
       } else {
-        const cat_en = String(data.get("category_en"));
-        const cat_tr = String(data.get("category_tr"));
-        const excerpt_en = String(data.get("excerpt_en"));
-        const excerpt_tr = String(data.get("excerpt_tr"));
-        const body_en = String(data.get("body_en"));
-        const body_tr = String(data.get("body_tr"));
+        const cat_en = String(formData.get("category_en"));
+        const cat_tr = String(formData.get("category_tr"));
+        const excerpt_en = String(formData.get("excerpt_en"));
+        const excerpt_tr = String(formData.get("excerpt_tr"));
+        const body_en = String(formData.get("body_en"));
+        const body_tr = String(formData.get("body_tr"));
         const category_i18n = { tr: cat_tr || cat_en, en: cat_en || cat_tr };
         const excerpt_i18n = { tr: excerpt_tr || excerpt_en, en: excerpt_en || excerpt_tr };
         const body_i18n = { tr: body_tr || body_en, en: body_en || body_tr };
-        
-        const { error } = await createClient()
+
+        const { error } = await supabase
           .from("news_posts")
           .insert({
             title,
@@ -201,29 +238,34 @@ export function ContentManager() {
           });
         setMessage(error ? error.message : "Haber kaydedildi.");
       }
+      setImageGallery([]);
+      setVideoGallery([]);
     }
     (document.getElementById("cms-form") as HTMLFormElement).reset();
     load();
-  }
+  };
 
-  async function togglePublish(id: string, published: boolean) {
-    const { error } = await createClient()
+  const togglePublish = async (id: string, published: boolean) => {
+    if (!supabase) return;
+
+    const { error } = await supabase
       .from(table)
       .update({ published: !published })
       .eq("id", id);
     if (!error) load();
-  }
+  };
 
-  async function deleteItem(id: string) {
+  const deleteItem = async (id: string) => {
     if (!confirm("Silmek istediğine emin misin?")) return;
-    const { error } = await createClient().from(table).delete().eq("id", id);
+    if (!supabase) return;
+    const { error } = await supabase.from(table).delete().eq("id", id);
     if (!error) load();
-  }
+  };
 
-  function editItem(item: Item) {
+  const editItem = (item: Item) => {
     setEditingId(item.id);
     const form = document.getElementById("cms-form") as HTMLFormElement;
-    
+
     // Fill in title fields
     const titleEn = form.querySelector('[name="title_en"]') as HTMLInputElement;
     const titleTr = form.querySelector('[name="title_tr"]') as HTMLInputElement;
@@ -234,25 +276,25 @@ export function ContentManager() {
       // Games specific fields
       const genreEn = form.querySelector('[name="genre_en"]') as HTMLInputElement;
       const genreTr = form.querySelector('[name="genre_tr"]') as HTMLInputElement;
-      const platformEn = form.querySelector('[name="platform_en"]') as HTMLInputElement;
-      const platformTr = form.querySelector('[name="platform_tr"]') as HTMLInputElement;
       const descEn = form.querySelector('[name="description_en"]') as HTMLTextAreaElement;
       const descTr = form.querySelector('[name="description_tr"]') as HTMLTextAreaElement;
       const statusEn = form.querySelector('[name="status_en"]') as HTMLInputElement;
       const statusTr = form.querySelector('[name="status_tr"]') as HTMLInputElement;
       const imageUrl = form.querySelector('[name="imageUrl"]') as HTMLInputElement;
-      const videoUrl = form.querySelector('[name="videoUrl"]') as HTMLInputElement;
+              const videoUrl = form.querySelector('[name="videoUrl"]') as HTMLInputElement;
+              const downloadUrl = form.querySelector('[name="downloadUrl"]') as HTMLInputElement;
 
-      if (genreEn) genreEn.value = item.genre_i18n?.en || "";
-      if (genreTr) genreTr.value = item.genre_i18n?.tr || "";
-      if (platformEn) platformEn.value = item.platform_i18n?.en || "";
-      if (platformTr) platformTr.value = item.platform_i18n?.tr || "";
-      if (descEn) descEn.value = item.description_i18n?.en || "";
-      if (descTr) descTr.value = item.description_i18n?.tr || "";
-      if (statusEn) statusEn.value = item.status_i18n?.en || "";
-      if (statusTr) statusTr.value = item.status_i18n?.tr || "";
-      if (imageUrl) imageUrl.value = item.cover_image_url || "";
-      if (videoUrl) videoUrl.value = item.trailer_url || "";
+              if (genreEn) genreEn.value = item.genre_i18n?.en || "";
+              if (genreTr) genreTr.value = item.genre_i18n?.tr || "";
+              if (descEn) descEn.value = item.description_i18n?.en || "";
+              if (descTr) descTr.value = item.description_i18n?.tr || "";
+              if (statusEn) statusEn.value = item.status_i18n?.en || "";
+              if (statusTr) statusTr.value = item.status_i18n?.tr || "";
+              if (imageUrl) imageUrl.value = item.cover_image_url || "";
+              if (videoUrl) videoUrl.value = item.trailer_url || "";
+              if (downloadUrl) downloadUrl.value = (item as any).download_url || "";
+      setImageGallery(item.image_gallery || []);
+      setVideoGallery(item.video_gallery || []);
 
       // Platform links
       for (const p of platforms) {
@@ -275,7 +317,23 @@ export function ContentManager() {
       if (bodyEn) bodyEn.value = item.body_i18n?.en || "";
       if (bodyTr) bodyTr.value = item.body_i18n?.tr || "";
     }
-  }
+  };
+
+  // Helper to add media
+  const addMediaItem = (type: "image" | "video", value: string) => {
+    if (type === "image") setImageGallery((prev) => [...prev, value]);
+    else setVideoGallery((prev) => [...prev, value]);
+  };
+  const removeMediaItem = (type: "image" | "video", index: number) => {
+    if (type === "image") setImageGallery((prev) => prev.filter((_, i) => i !== index));
+    else setVideoGallery((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Extract YouTube ID for thumbnail
+  const getYouTubeThumbnail = (url: string) => {
+    const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([^&?]+)/);
+    return match ? `https://img.youtube.com/vi/${match[1]}/hqdefault.jpg` : null;
+  };
 
   return (
     <section className="mt-10 grid gap-6 lg:grid-cols-2">
@@ -286,7 +344,7 @@ export function ContentManager() {
             className={
               tab === "games"
                 ? "rounded-full bg-blue-600 px-3 py-2 text-xs"
-                : "px-3 text-xs text-zinc-500"
+                : "px-3 py-2 text-xs text-zinc-400"
             }
           >
             Oyunlar
@@ -296,7 +354,7 @@ export function ContentManager() {
             className={
               tab === "news"
                 ? "rounded-full bg-blue-600 px-3 py-2 text-xs"
-                : "px-3 text-xs text-zinc-500"
+                : "px-3 py-2 text-xs text-zinc-400"
             }
           >
             Haberler
@@ -331,7 +389,7 @@ export function ContentManager() {
               />
             </div>
           </div>
-          
+
           {tab === "games" ? (
             <>
               <div className="grid gap-2">
@@ -351,22 +409,6 @@ export function ContentManager() {
               </div>
 
               <div className="grid gap-2">
-                <p className="text-sm font-medium text-zinc-400">Platform</p>
-                <div className="grid gap-2 md:grid-cols-2">
-                  <input
-                    name="platform_en"
-                    placeholder="English"
-                    className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm"
-                  />
-                  <input
-                    name="platform_tr"
-                    placeholder="Türkçe"
-                    className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm"
-                  />
-                </div>
-              </div>
-              
-              <div className="grid gap-2">
                 <p className="text-sm font-medium text-zinc-400">Durum (Status)</p>
                 <div className="grid gap-2 md:grid-cols-2">
                   <input
@@ -384,10 +426,11 @@ export function ContentManager() {
                 </div>
               </div>
 
-              <div className="mt-2 grid gap-2">
+              <div className="grid gap-2">
                 <p className="text-sm font-medium text-zinc-400">Platform Bağlantıları</p>
                 {platforms.map((p) => (
-                  <div key={p.key} className="flex gap-2">
+                  <div key={p.key} className="flex gap-2 items-center">
+                    <p.icon className="w-4 h-4 text-zinc-400" />
                     <input
                       name={`platform_${p.key}`}
                       type="url"
@@ -397,20 +440,152 @@ export function ContentManager() {
                   </div>
                 ))}
               </div>
-              
-              <input
-                name="imageUrl"
-                type="url"
-                placeholder="Kapak görseli URL"
-                className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm"
-              />
-              <input
-                name="videoUrl"
-                type="url"
-                placeholder="Fragman / video URL"
-                className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm"
-              />
-              
+
+              <div className="grid gap-2">
+                <p className="text-sm font-medium text-zinc-400">Kapak Görseli</p>
+                <input
+                  name="imageUrl"
+                  type="url"
+                  placeholder="Kapak görseli URL"
+                  className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm mb-1"
+                />
+                <div className="flex gap-2">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="text-sm text-zinc-400"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const url = await handleFileUpload(file);
+                        if (url) {
+                          const input = document.querySelector('[name="imageUrl"]') as HTMLInputElement;
+                          if (input) input.value = url;
+                        }
+                      }
+                    }}
+                  />
+                  {uploading && <p className="text-xs text-blue-400">Yükleniyor...</p>}
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <p className="text-sm font-medium text-zinc-400">Fragman (YouTube)</p>
+                <input
+                  name="videoUrl"
+                  type="url"
+                  placeholder="YouTube URL"
+                  className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <p className="text-sm font-medium text-zinc-400">Oyun Dosyası (İndirme)</p>
+                <input
+                  name="downloadUrl"
+                  type="url"
+                  placeholder="Oyun dosyası URL"
+                  className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm mb-1"
+                />
+                <div className="flex gap-2">
+                  <input
+                    type="file"
+                    className="text-sm text-zinc-400"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const url = await handleFileUpload(file);
+                        if (url) {
+                          const input = document.querySelector('[name="downloadUrl"]') as HTMLInputElement;
+                          if (input) input.value = url;
+                        }
+                      }
+                    }}
+                  />
+                  {uploading && <p className="text-xs text-blue-400">Yükleniyor...</p>}
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <p className="text-sm font-medium text-zinc-400">Görsel Galerisi</p>
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  {imageGallery.map((url, i) => (
+                    <div key={i} className="relative aspect-video rounded-lg overflow-hidden border border-white/10">
+                      <img src={url} alt={`Görsel ${i+1}`} className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removeMediaItem("image", i)}
+                        className="absolute top-1 right-1 p-1 rounded-full bg-black/50 text-white hover:bg-black/70"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  <input
+                    type="url"
+                    placeholder="Görsel URL ekle"
+                    className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && e.currentTarget.value) {
+                        addMediaItem("image", e.currentTarget.value);
+                        e.currentTarget.value = "";
+                      }
+                    }}
+                  />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="text-sm text-zinc-400"
+                    multiple
+                    onChange={async (e) => {
+                      const files = Array.from(e.target.files || []);
+                      for (const file of files) {
+                        const url = await handleFileUpload(file);
+                        if (url) addMediaItem("image", url);
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <p className="text-sm font-medium text-zinc-400">Video Galerisi</p>
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  {videoGallery.map((url, i) => {
+                    const thumb = getYouTubeThumbnail(url);
+                    return (
+                      <div key={i} className="relative aspect-video rounded-lg overflow-hidden border border-white/10 bg-black/20 flex items-center justify-center">
+                        {thumb ? (
+                          <img src={thumb} alt={`Video ${i+1}`} className="w-full h-full object-cover" />
+                        ) : (
+                          <Play className="w-6 h-6 text-white/50" />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeMediaItem("video", i)}
+                          className="absolute top-1 right-1 p-1 rounded-full bg-black/50 text-white hover:bg-black/70"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                <input
+                  type="url"
+                  placeholder="YouTube URL ekle (Enter)"
+                  className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && e.currentTarget.value) {
+                      addMediaItem("video", e.currentTarget.value);
+                      e.currentTarget.value = "";
+                    }
+                  }}
+                />
+              </div>
+
               <div className="grid gap-2">
                 <p className="text-sm font-medium text-zinc-400">Açıklama</p>
                 <div className="grid gap-2">
@@ -490,7 +665,7 @@ export function ContentManager() {
               </div>
             </>
           )}
-          
+
           <label className="text-sm text-zinc-400">
             <input name="published" type="checkbox" /> Hemen yayınla
           </label>
@@ -505,6 +680,8 @@ export function ContentManager() {
                 type="button"
                 onClick={() => {
                   setEditingId(null);
+                  setImageGallery([]);
+                  setVideoGallery([]);
                   (document.getElementById("cms-form") as HTMLFormElement).reset();
                 }}
                 className="inline-flex w-fit items-center gap-2 rounded-full border border-white/10 px-4 py-3 text-sm font-bold text-zinc-400"
@@ -519,6 +696,11 @@ export function ContentManager() {
         <div className="border-b border-white/10 p-5 font-display text-xl">
           {tab === "games" ? "Oyunlar" : "Haberler"}
         </div>
+        {!supabase && (
+          <div className="p-5 text-sm text-zinc-500">
+            Bu bölüm için Supabase ortam değişkenleri gerekiyor.
+          </div>
+        )}
         <div className="divide-y divide-white/[.07]">
           {items.map((item) => (
             <div

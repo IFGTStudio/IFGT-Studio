@@ -6,7 +6,6 @@ import { ArrowLeft } from "lucide-react";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { mapNews } from "@/lib/cms";
-import { news as fallbackNews } from "@/lib/content";
 import { useLabels } from "@/hooks/useLabels";
 import type { NewsItem } from "@/types";
 
@@ -18,7 +17,13 @@ export function NewsDetailContent() {
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await createClient()
+      const supabase = createClient();
+      if (!supabase) {
+        setItem(null);
+        return;
+      }
+
+      const { data } = await supabase
         .from("news_posts")
         .select("*")
         .eq("slug", slug)
@@ -28,8 +33,7 @@ export function NewsDetailContent() {
       if (data) {
         setItem(mapNews(data as Record<string, unknown>, locale));
       } else {
-        const fallback = fallbackNews.find((n) => n.slug === slug);
-        setItem(fallback || null);
+        setItem(null);
       }
     };
 

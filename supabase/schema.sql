@@ -6,7 +6,11 @@ end $$;
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
+  email text,
   username text unique check (username ~ '^[a-z0-9_]{3,20}$'),
+  avatar_url text,
+  bio text,
+  country text,
   ifgt_id text not null unique default ('IFGT-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 10))),
   role public.user_role not null default 'player',
   created_at timestamptz not null default now(),
@@ -23,6 +27,7 @@ drop policy if exists "Users read their profile" on public.profiles;
 drop policy if exists "Users create their profile" on public.profiles;
 drop policy if exists "Users update their profile" on public.profiles;
 drop policy if exists "Admins manage profiles" on public.profiles;
+drop policy if exists "Anyone can read email by username for login" on public.profiles;
 create policy "Users read their profile" on public.profiles for select using (auth.uid() = id or public.is_admin());
 create policy "Users create their profile" on public.profiles for insert with check (auth.uid() = id);
 create policy "Users update their profile" on public.profiles for update using (auth.uid() = id) with check (auth.uid() = id);
@@ -36,10 +41,46 @@ create trigger protect_profile_role before update on public.profiles for each ro
 
 create or replace function public.create_profile_for_new_user()
 returns trigger language plpgsql security definer set search_path = public
-as $$ begin insert into public.profiles (id) values (new.id); return new; end; $$;
+as $$ begin insert into public.profiles (id, email) values (new.id, new.email); return new; end; $$;
+
+create or replace function public.sync_profile_email_from_auth_user()
+returns trigger language plpgsql security definer set search_path = public
+as $$
+begin
+  update public.profiles
+  set email = new.email,
+      updated_at = now()
+  where id = new.id;
+  return new;
+end;
+$$;
+
+create or replace function public.is_username_available(candidate text)
+returns boolean language sql security definer stable set search_path = public
+as $$
+  select not exists (
+    select 1
+    from public.profiles
+    where username = lower(trim(candidate))
+  )
+$$;
+
+create or replace function public.get_login_email(candidate text)
+returns text language sql security definer stable set search_path = public
+as $$
+  select email
+  from public.profiles
+  where username = lower(trim(candidate))
+  limit 1
+$$;
+
+grant execute on function public.is_username_available(text) to anon, authenticated;
+grant execute on function public.get_login_email(text) to anon, authenticated;
 
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created after insert on auth.users for each row execute procedure public.create_profile_for_new_user();
+drop trigger if exists on_auth_user_updated on auth.users;
+create trigger on_auth_user_updated after update of email on auth.users for each row execute procedure public.sync_profile_email_from_auth_user();
 
 -- Content CMS
 create table if not exists public.games (
@@ -76,6 +117,10 @@ alter table public.news_posts add column if not exists cover_gradient text defau
 alter table public.news_posts add column if not exists published boolean not null default false;
 alter table public.news_posts add column if not exists published_at timestamptz;
 alter table public.news_posts add column if not exists created_at timestamptz not null default now();
+alter table public.profiles add column if not exists email text;
+alter table public.profiles add column if not exists avatar_url text;
+alter table public.profiles add column if not exists bio text;
+alter table public.profiles add column if not exists country text;
 alter table public.games enable row level security;
 alter table public.news_posts enable row level security;
 drop policy if exists "Public reads published games" on public.games;

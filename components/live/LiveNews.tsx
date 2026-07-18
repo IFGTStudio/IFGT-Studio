@@ -16,7 +16,13 @@ export function LiveNews() {
 
   useEffect(() => {
     const loadPosts = async () => {
-      const { data } = await createClient()
+      const supabase = createClient();
+      if (!supabase) {
+        setPosts([]);
+        return;
+      }
+
+      const { data } = await supabase
         .from("news_posts")
         .select("*")
         .eq("published", true)

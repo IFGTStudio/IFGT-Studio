@@ -1,7 +1,15 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { LogOut, ShieldCheck, Gamepad2, UserRound, LayoutDashboard } from "lucide-react";
+import {
+  CalendarDays,
+  Gamepad2,
+  Globe2,
+  LayoutDashboard,
+  LogOut,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/types";
 import { ProfileSetup } from "@/components/id/ProfileSetup";
@@ -9,9 +17,16 @@ import { ProfileSetup } from "@/components/id/ProfileSetup";
 export function AccountPanel() {
   const [user, setUser] = useState<{ id: string; email?: string; user_metadata?: any } | null | undefined>(undefined);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [supabaseAvailable, setSupabaseAvailable] = useState(true);
 
   const load = useCallback(async () => {
     const supabase = createClient();
+    if (!supabase) {
+      setSupabaseAvailable(false);
+      setUser(null);
+      return;
+    }
+    setSupabaseAvailable(true);
     const { data } = await supabase.auth.getUser();
     if (!data.user) return setUser(null);
     setUser(data.user);
@@ -25,12 +40,16 @@ export function AccountPanel() {
 
   useEffect(() => {
     load();
-    const { data: sub } = createClient().auth.onAuthStateChange(() => load());
+    const supabase = createClient();
+    if (!supabase) return;
+    const { data: sub } = supabase.auth.onAuthStateChange(() => load());
     return () => sub.subscription.unsubscribe();
   }, [load]);
 
   async function signOut() {
-    await createClient().auth.signOut();
+    const supabase = createClient();
+    if (!supabase) return;
+    await supabase.auth.signOut();
     location.assign("/");
   }
 
@@ -42,6 +61,17 @@ export function AccountPanel() {
     );
 
   if (!user) {
+    if (!supabaseAvailable) {
+      return (
+        <main className="min-h-screen bg-[#050505] px-5 pb-20 pt-32 sm:px-8">
+          <div className="mx-auto max-w-3xl rounded-3xl border border-white/10 bg-white/[.04] p-8">
+            <p className="text-sm text-zinc-400">
+              IFGT ID sistemi henüz yapılandırılmamış. Supabase ortam değişkenleri eklenmeden bu alan kullanılamaz.
+            </p>
+          </div>
+        </main>
+      );
+    }
     location.assign("/sign-in");
     return null;
   }
@@ -91,6 +121,41 @@ export function AccountPanel() {
             <UserRound className="text-zinc-400" />
             <p className="mt-8 text-sm text-zinc-500">Oyuncu profili</p>
             <p className="mt-2 font-display text-xl">@{profile.username}</p>
+            <p className="mt-2 text-sm text-zinc-500 capitalize">{profile.role}</p>
+          </section>
+          <section className="rounded-2xl border border-white/10 bg-white/[.04] p-6">
+            <Globe2 className="text-zinc-400" />
+            <p className="mt-8 text-sm text-zinc-500">Ulke</p>
+            <p className="mt-2 font-display text-xl">{profile.country || "Belirtilmedi"}</p>
+          </section>
+          <section className="rounded-2xl border border-white/10 bg-white/[.04] p-6">
+            <CalendarDays className="text-zinc-400" />
+            <p className="mt-8 text-sm text-zinc-500">Kayit tarihi</p>
+            <p className="mt-2 font-display text-xl">
+              {new Date(profile.created_at).toLocaleDateString("tr-TR")}
+            </p>
+          </section>
+          <section className="rounded-2xl border border-white/10 bg-white/[.04] p-6 md:col-span-3">
+            <div className="flex items-start gap-4">
+              <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/[.04]">
+                {profile.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={profile.avatar_url}
+                    alt={profile.username ?? "IFGT avatar"}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <UserRound className="text-zinc-500" />
+                )}
+              </div>
+              <div>
+                <p className="text-sm text-zinc-500">Biyografi</p>
+                <p className="mt-2 text-sm leading-6 text-zinc-300">
+                  {profile.bio || "Henüz bir biyografi eklenmedi."}
+                </p>
+              </div>
+            </div>
           </section>
           <section className="rounded-2xl border border-white/10 bg-white/[.04] p-6 md:col-span-3">
             <Gamepad2 className="text-blue-400" />

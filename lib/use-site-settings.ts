@@ -14,8 +14,20 @@ type SiteSetting = {
 // Fallback settings if supabase returns empty
 const fallbackSettings: Record<string, { tr: string; en: string }> = {
   "footer.tagline": {
-    tr: "Bağımsız Gelecek Oyun Teknolojileri. Önemsenmeye değer deneyimler üretiyoruz.",
-    en: "Independent Future Game Technologies. We make experiences worth caring about."
+    tr: "Sevdiğin oyunları yapıyoruz.",
+    en: "We make games you'll love."
+  },
+  "hero.backgroundImage": {
+    tr: "",
+    en: ""
+  },
+  "hero.backgroundVideo": {
+    tr: "",
+    en: ""
+  },
+  "hero.gallery": {
+    tr: "",
+    en: ""
   },
   "footer.explore": { tr: "Keşfet", en: "Explore" },
   "footer.connect": { tr: "Bağlan", en: "Connect" },
@@ -23,7 +35,10 @@ const fallbackSettings: Record<string, { tr: string; en: string }> = {
   "footer.rights": { tr: "© 2026 IFGT Studio. Tüm hakları saklıdır.", en: "© 2026 IFGT Studio. All rights reserved." },
   "footer.privacy": { tr: "Gizlilik", en: "Privacy" },
   "footer.terms": { tr: "Şartlar", en: "Terms" },
-  "footer.accessibility": { tr: "Erişilebilirlik", en: "Accessibility" }
+  "footer.accessibility": { tr: "Erişilebilirlik", en: "Accessibility" },
+  "social.instagram": { tr: "https://instagram.com", en: "https://instagram.com" },
+  "social.linkedin": { tr: "https://linkedin.com", en: "https://linkedin.com" },
+  "social.youtube": { tr: "https://youtube.com", en: "https://youtube.com" }
 };
 
 export function useSiteSettings() {
@@ -34,6 +49,10 @@ export function useSiteSettings() {
 
   useEffect(() => {
     const load = async () => {
+      if (!supabase) {
+        setLoading(false);
+        return;
+      }
       const { data } = await supabase.from("site_settings").select("*");
       setSettings(data ?? []);
       setLoading(false);

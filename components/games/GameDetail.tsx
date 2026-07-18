@@ -5,7 +5,6 @@ import Link from "next/link";
 import { X, ChevronLeft, ChevronRight, Download, Play, ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { mapGame } from "@/lib/cms";
-import { games as fallbackGames } from "@/lib/content";
 import { useLocale } from "@/hooks/useLocale";
 import { uiLabels } from "@/lib/i18n";
 import type { Game } from "@/types";
@@ -27,6 +26,7 @@ type GameRecord = {
   platform_links?: PlatformLink;
   cover_gradient?: string;
   status?: string;
+  download_url?: string;
 };
 
 const platformLabels: Record<PlatformKey, string> = {
@@ -36,6 +36,15 @@ const platformLabels: Record<PlatformKey, string> = {
   playstore: "Play Store",
   xbox: "Xbox",
   ps: "PlayStation",
+};
+
+const platformLogos: Record<PlatformKey, string> = {
+  steam: "/logos/steam.png",
+  epic: "/logos/epic.png",
+  appstore: "/logos/appstore.png",
+  playstore: "/logos/playstore.png",
+  xbox: "/logos/xbox.png",
+  ps: "/logos/playstation.png",
 };
 
 export function GameDetail() {
@@ -49,7 +58,13 @@ export function GameDetail() {
 
   useEffect(() => {
     const loadGame = async () => {
-      const { data } = await createClient()
+      const supabase = createClient();
+      if (!supabase) {
+        setGame(null);
+        return;
+      }
+
+      const { data } = await supabase
         .from("games")
         .select("*")
         .eq("slug", slug)
@@ -58,10 +73,9 @@ export function GameDetail() {
 
       if (data) {
         const mapped = mapGame(data as Record<string, unknown>, locale);
-        setGame({ ...mapped, ...(data as GameRecord) });
+        setGame({ ...mapped, ...(data as GameRecord), downloadUrl: (data as GameRecord).download_url });
       } else {
-        const fallback = fallbackGames.find((g) => g.slug === slug);
-        setGame(fallback || null);
+        setGame(null);
       }
     };
 
@@ -177,19 +191,41 @@ export function GameDetail() {
         </section>
 
         {/* Platform Download Buttons */}
-        {platformLinks && Object.keys(platformLinks).length > 0 && (
+        {(platformLinks && Object.keys(platformLinks).length > 0 || game?.downloadUrl) && (
           <section className="mt-12">
             <h2 className="font-display text-2xl">{ui.platforms}</h2>
             <div className="mt-4 flex flex-wrap gap-4">
-              {Object.entries(platformLinks).map(([key, url]) => (
+              {/* Our site's download button first */}
+              {game?.downloadUrl && (
+                <a
+                  href={game.downloadUrl}
+                  download
+                  className="flex items-center gap-3 rounded-xl border border-blue-500 bg-blue-600/20 px-5 py-3 transition hover:bg-blue-600/30"
+                >
+                  <img
+                    src="/logos/ifgt.png"
+                    alt="IFGT"
+                    className="w-6 h-6 object-contain"
+                  />
+                  <span className="font-medium">
+                    {locale === "tr" ? "IFGT'den İndir" : "Download from IFGT"}
+                  </span>
+                </a>
+              )}
+              {/* Platform buttons */}
+              {platformLinks && Object.entries(platformLinks).map(([key, url]) => (
                 <a
                   key={key}
                   href={url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[.04] px-5 py-3 transition hover:border-blue-500 hover:bg-blue-500/10"
+                  className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[.04] px-5 py-3 transition hover:border-blue-500 hover:bg-blue-500/10"
                 >
-                  <Download size={18} />
+                  <img
+                    src={platformLogos[key as PlatformKey]}
+                    alt={platformLabels[key as PlatformKey]}
+                    className="w-6 h-6 object-contain"
+                  />
                   <span className="font-medium">
                     {platformLabels[key as PlatformKey]}
                   </span>
