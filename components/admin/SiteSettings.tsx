@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, Eye, EyeOff, Upload } from "lucide-react";
+import { Plus, Pencil, Trash2, Upload } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "@/hooks/useLocale";
 
@@ -18,7 +18,6 @@ export function SiteSettings() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
   const [heroBgUrlInput, setHeroBgUrlInput] = useState("");
   const [heroBgVideoInput, setHeroBgVideoInput] = useState("");
   const [heroGalleryInput, setHeroGalleryInput] = useState<string[]>([]);
@@ -29,30 +28,6 @@ export function SiteSettings() {
   const currentHeroBg = settings.find(s => s.key === "hero.backgroundImage");
   const currentHeroVideo = settings.find(s => s.key === "hero.backgroundVideo");
   const currentHeroGallery = settings.find(s => s.key === "hero.gallery");
-
-  // Upload file to Supabase Storage
-  const handleFileUpload = async (file: File) => {
-    if (!supabase) return;
-    setUploading(true);
-    setMessage("");
-    try {
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const { data, error } = await supabase.storage
-        .from("media")
-        .upload(fileName, file);
-      if (error) throw error;
-      const { data: urlData } = supabase.storage
-        .from("media")
-        .getPublicUrl(data.path);
-      return urlData.publicUrl;
-    } catch (error) {
-      console.error("Upload failed:", error);
-      setMessage("Dosya yükleme başarısız!");
-    } finally {
-      setUploading(false);
-    }
-  };
 
   const loadSettings = async () => {
     if (!supabase) return;
@@ -206,282 +181,230 @@ export function SiteSettings() {
         <>
           {/* Hero Background Section */}
           <div className="rounded-2xl border border-white/10 bg-white/[.03] p-6">
-        <h2 className="font-display text-2xl">Hero Arka Planı</h2>
-        <div className="mt-5 grid gap-6">
-          {/* Background Image */}
-          <div className="grid gap-3">
-            <h3 className="font-medium text-lg">Görsel Arka Planı</h3>
-            <div className="grid gap-2">
-              <p className="text-sm font-medium text-zinc-400">Görsel URL</p>
-              <input
-                type="url"
-                value={heroBgUrlInput}
-                onChange={(e) => setHeroBgUrlInput(e.target.value)}
-                placeholder="https://example.com/background.jpg"
-                className="rounded-xl border border-white/10 bg-black/20 px-4 py-3"
-              />
-            </div>
-            <div className="flex gap-2 items-center">
-              <input
-                type="file"
-                accept="image/*"
-                className="text-sm text-zinc-400"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    const url = await handleFileUpload(file);
-                    if (url) {
-                      setHeroBgUrlInput(url);
-                    }
-                  }
-                }}
-              />
-              {uploading && <p className="text-xs text-blue-400">Yükleniyor...</p>}
-            </div>
-            {currentHeroBg?.value_tr && (
-              <div className="mt-2">
-                <p className="text-sm text-zinc-400 mb-1">Mevcut Görsel:</p>
-                <img
-                  src={currentHeroBg.value_tr}
-                  alt="Current hero background"
-                  className="w-full max-w-xs h-32 object-cover rounded-lg border border-white/10"
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Background Video */}
-          <div className="grid gap-3">
-            <h3 className="font-medium text-lg">Video Arka Planı</h3>
-            <div className="grid gap-2">
-              <p className="text-sm font-medium text-zinc-400">Video URL (YouTube veya dosya)</p>
-              <input
-                type="url"
-                value={heroBgVideoInput}
-                onChange={(e) => setHeroBgVideoInput(e.target.value)}
-                placeholder="https://example.com/video.mp4 veya YouTube URL'si"
-                className="rounded-xl border border-white/10 bg-black/20 px-4 py-3"
-              />
-            </div>
-            <div className="flex gap-2 items-center">
-              <input
-                type="file"
-                accept="video/*"
-                className="text-sm text-zinc-400"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    const url = await handleFileUpload(file);
-                    if (url) {
-                      setHeroBgVideoInput(url);
-                    }
-                  }
-                }}
-              />
-              {uploading && <p className="text-xs text-blue-400">Yükleniyor...</p>}
-            </div>
-            {currentHeroVideo?.value_tr && (
-              <div className="mt-2">
-                <p className="text-sm text-zinc-400 mb-1">Mevcut Video:</p>
-                {currentHeroVideo.value_tr.includes("youtube.com") || currentHeroVideo.value_tr.includes("youtu.be") ? (
-                  <div className="w-full max-w-xs rounded-lg border border-white/10 overflow-hidden">
-                    <iframe
-                      width="100%"
-                      height="200"
-                      src={`${currentHeroVideo.value_tr.replace("watch?v=", "embed/").replace("youtu.be/", "youtube.com/embed/")}?autoplay=1&mute=1&loop=1&playlist=${currentHeroVideo.value_tr.split("v=")[1] || currentHeroVideo.value_tr.split("/").pop()}`}
-                      title="Hero background video"
-                      frameBorder="0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
+            <h2 className="font-display text-2xl">Hero Arka Planı</h2>
+            <div className="mt-5 grid gap-6">
+              {/* Background Image */}
+              <div className="grid gap-3">
+                <h3 className="font-medium text-lg">Görsel Arka Planı</h3>
+                <div className="grid gap-2">
+                  <p className="text-sm font-medium text-zinc-400">Dosya Yolu (public klasöründen başlayarak, örn: /hero/background.jpg)</p>
+                  <input
+                    type="text"
+                    value={heroBgUrlInput}
+                    onChange={(e) => setHeroBgUrlInput(e.target.value)}
+                    placeholder="/hero/background.jpg"
+                    className="rounded-xl border border-white/10 bg-black/20 px-4 py-3"
+                  />
+                </div>
+                {currentHeroBg?.value_tr && (
+                  <div className="mt-2">
+                    <p className="text-sm text-zinc-400 mb-1">Mevcut Görsel:</p>
+                    <img
+                      src={currentHeroBg.value_tr}
+                      alt="Current hero background"
+                      className="w-full max-w-xs h-32 object-cover rounded-lg border border-white/10"
                     />
                   </div>
-                ) : (
-                  <video
-                    src={currentHeroVideo.value_tr}
-                    className="w-full max-w-xs h-32 object-cover rounded-lg border border-white/10"
-                    controls
-                    muted
-                  />
                 )}
               </div>
-            )}
-          </div>
 
-          {/* Gallery */}
-          <div className="grid gap-3">
-            <h3 className="font-medium text-lg">Otomatik Oynatan Galeri</h3>
-            <div className="grid gap-2">
-              <p className="text-sm font-medium text-zinc-400">Galeri Öğeleri (URL veya dosya yükle)</p>
+              {/* Background Video */}
+              <div className="grid gap-3">
+                <h3 className="font-medium text-lg">Video Arka Planı</h3>
+                <div className="grid gap-2">
+                  <p className="text-sm font-medium text-zinc-400">Dosya Yolu (veya YouTube URL)</p>
+                  <input
+                    type="text"
+                    value={heroBgVideoInput}
+                    onChange={(e) => setHeroBgVideoInput(e.target.value)}
+                    placeholder="/hero/background.mp4"
+                    className="rounded-xl border border-white/10 bg-black/20 px-4 py-3"
+                  />
+                </div>
+                {currentHeroVideo?.value_tr && (
+                  <div className="mt-2">
+                    <p className="text-sm text-zinc-400 mb-1">Mevcut Video:</p>
+                    {currentHeroVideo.value_tr.includes("youtube.com") || currentHeroVideo.value_tr.includes("youtu.be") ? (
+                      <div className="w-full max-w-xs rounded-lg border border-white/10 overflow-hidden">
+                        <iframe
+                          width="100%"
+                          height="200"
+                          src={`${currentHeroVideo.value_tr.replace("watch?v=", "embed/").replace("youtu.be/", "youtube.com/embed/")}?autoplay=1&mute=1&loop=1&playlist=${currentHeroVideo.value_tr.split("v=")[1] || currentHeroVideo.value_tr.split("/").pop()}`}
+                          title="Hero background video"
+                          frameBorder="0"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                        />
+                      </div>
+                    ) : (
+                      <video
+                        src={currentHeroVideo.value_tr}
+                        className="w-full max-w-xs h-32 object-cover rounded-lg border border-white/10"
+                        controls
+                        muted
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Gallery */}
+              <div className="grid gap-3">
+                <h3 className="font-medium text-lg">Otomatik Oynatan Galeri</h3>
+                <div className="grid gap-2">
+                  <p className="text-sm font-medium text-zinc-400">Galeri Öğeleri (dosya yolu veya URL)</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={tempGalleryUrl}
+                      onChange={(e) => setTempGalleryUrl(e.target.value)}
+                      placeholder="/hero/gallery1.jpg"
+                      className="flex-1 rounded-xl border border-white/10 bg-black/20 px-4 py-3"
+                    />
+                    <button
+                      onClick={addGalleryItem}
+                      className="rounded-full bg-blue-600 px-4 py-3 text-sm font-bold"
+                    >
+                      Ekle
+                    </button>
+                  </div>
+                  {heroGalleryInput.length > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mt-2">
+                      {heroGalleryInput.map((url, index) => (
+                        <div key={index} className="relative rounded-lg border border-white/10 overflow-hidden aspect-video">
+                          {url.includes(".mp4") || url.includes(".webm") || url.includes(".mov") ? (
+                            <video
+                              src={url}
+                              className="w-full h-full object-cover"
+                              muted
+                              loop
+                            />
+                          ) : (
+                            <img
+                              src={url}
+                              alt={`Gallery item ${index + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                          )}
+                          <button
+                            onClick={() => removeGalleryItem(index)}
+                            className="absolute top-1 right-1 p-1 rounded-full bg-red-500 hover:bg-red-600 text-white"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="18" y1="6" x2="6" y2="18"></line>
+                              <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="flex gap-2">
-                <input
-                  type="url"
-                  value={tempGalleryUrl}
-                  onChange={(e) => setTempGalleryUrl(e.target.value)}
-                  placeholder="https://example.com/gallery1.jpg"
-                  className="flex-1 rounded-xl border border-white/10 bg-black/20 px-4 py-3"
-                />
                 <button
-                  onClick={addGalleryItem}
-                  className="rounded-full bg-blue-600 px-4 py-3 text-sm font-bold"
+                  onClick={saveHeroSettings}
+                  className="inline-flex w-fit items-center gap-2 rounded-full bg-blue-600 px-4 py-3 text-sm font-bold"
                 >
-                  Ekle
+                  <Upload size={16} />
+                  Tüm Ayarları Kaydet
                 </button>
               </div>
-              <div className="flex gap-2 items-center">
+            </div>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="rounded-2xl border border-white/10 bg-white/[.03] p-6">
+              <h2 className="font-display text-2xl">
+                {editingKey ? "Düzenle" : "Yeni Ayar Ekle"}
+              </h2>
+              <form
+                id="settings-form"
+                action={save}
+                className="mt-5 grid gap-3"
+              >
                 <input
-                  type="file"
-                  accept="image/*,video/*"
-                  multiple
-                  className="text-sm text-zinc-400"
-                  onChange={async (e) => {
-                    const files = Array.from(e.target.files || []);
-                    for (const file of files) {
-                      const url = await handleFileUpload(file);
-                      if (url) {
-                        setHeroGalleryInput(prev => [...prev, url]);
-                      }
-                    }
-                  }}
+                  required
+                  name="key"
+                  placeholder="Ayar Anahtarı (örn: footer_tagline)"
+                  className="rounded-xl border border-white/10 bg-black/20 px-4 py-3"
                 />
-                {uploading && <p className="text-xs text-blue-400">Yükleniyor...</p>}
+                <textarea
+                  name="value_tr"
+                  rows={2}
+                  placeholder="Türkçe Değer"
+                  className="rounded-xl border border-white/10 bg-black/20 px-4 py-3"
+                />
+                <textarea
+                  name="value_en"
+                  rows={2}
+                  placeholder="İngilizce Değer"
+                  className="rounded-xl border border-white/10 bg-black/20 px-4 py-3"
+                />
+                {message && <p className="text-sm text-blue-300">{message}</p>}
+                <div className="flex gap-2">
+                  <button className="inline-flex w-fit items-center gap-2 rounded-full bg-blue-600 px-4 py-3 text-sm font-bold">
+                    <Plus size={16} />
+                    {editingKey ? "Güncelle" : "Kaydet"}
+                  </button>
+                  {editingKey && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingKey(null);
+                        (document.getElementById("settings-form") as HTMLFormElement).reset();
+                      }}
+                      className="inline-flex w-fit items-center gap-2 rounded-full border border-white/10 px-4 py-3 text-sm font-bold text-zinc-400"
+                    >
+                      İptal
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+            <div className="overflow-hidden rounded-2xl border border-white/10">
+              <div className="border-b border-white/10 p-5 font-display text-xl">
+                Site Ayarları
               </div>
-              {heroGalleryInput.length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mt-2">
-                  {heroGalleryInput.map((url, index) => (
-                    <div key={index} className="relative rounded-lg border border-white/10 overflow-hidden aspect-video">
-                      {url.includes(".mp4") || url.includes(".webm") || url.includes(".mov") ? (
-                        <video
-                          src={url}
-                          className="w-full h-full object-cover"
-                          muted
-                          loop
-                        />
-                      ) : (
-                        <img
-                          src={url}
-                          alt={`Gallery item ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                      )}
-                      <button
-                        onClick={() => removeGalleryItem(index)}
-                        className="absolute top-1 right-1 p-1 rounded-full bg-red-500 hover:bg-red-600 text-white"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="18" y1="6" x2="6" y2="18"></line>
-                          <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                      </button>
+              {!supabase && (
+                <div className="p-5 text-sm text-zinc-500">
+                  Bu bölüm için Supabase ortam değişkenleri gerekiyor.
+                </div>
+              )}
+              <div className="divide-y divide-white/[.07]">
+                {settings
+                  .filter(s => s.key !== "hero.backgroundImage" && s.key !== "hero.backgroundVideo" && s.key !== "hero.gallery")
+                  .map((setting) => (
+                    <div
+                      key={setting.key}
+                      className="flex items-center justify-between gap-4 p-5"
+                    >
+                      <div>
+                        <p className="font-medium">{setting.key}</p>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          {locale === "tr" ? setting.value_tr : setting.value_en}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => editSetting(setting)}
+                          className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:border-blue-500 hover:text-blue-400"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          onClick={() => deleteSetting(setting.key)}
+                          className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:border-red-500 hover:text-red-400"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
                   ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={saveHeroSettings}
-              className="inline-flex w-fit items-center gap-2 rounded-full bg-blue-600 px-4 py-3 text-sm font-bold"
-            >
-              <Upload size={16} />
-              Tüm Ayarları Kaydet
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-white/10 bg-white/[.03] p-6">
-          <h2 className="font-display text-2xl">
-            {editingKey ? "Düzenle" : "Yeni Ayar Ekle"}
-          </h2>
-          <form
-            id="settings-form"
-            action={save}
-            className="mt-5 grid gap-3"
-          >
-            <input
-              required
-              name="key"
-              placeholder="Ayar Anahtarı (örn: footer_tagline)"
-              className="rounded-xl border border-white/10 bg-black/20 px-4 py-3"
-            />
-            <textarea
-              name="value_tr"
-              rows={2}
-              placeholder="Türkçe Değer"
-              className="rounded-xl border border-white/10 bg-black/20 px-4 py-3"
-            />
-            <textarea
-              name="value_en"
-              rows={2}
-              placeholder="İngilizce Değer"
-              className="rounded-xl border border-white/10 bg-black/20 px-4 py-3"
-            />
-            {message && <p className="text-sm text-blue-300">{message}</p>}
-            <div className="flex gap-2">
-              <button className="inline-flex w-fit items-center gap-2 rounded-full bg-blue-600 px-4 py-3 text-sm font-bold">
-                <Plus size={16} />
-                {editingKey ? "Güncelle" : "Kaydet"}
-              </button>
-              {editingKey && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingKey(null);
-                    (document.getElementById("settings-form") as HTMLFormElement).reset();
-                  }}
-                  className="inline-flex w-fit items-center gap-2 rounded-full border border-white/10 px-4 py-3 text-sm font-bold text-zinc-400"
-                >
-                  İptal
-                </button>
-              )}
-            </div>
-          </form>
-        </div>
-        <div className="overflow-hidden rounded-2xl border border-white/10">
-          <div className="border-b border-white/10 p-5 font-display text-xl">
-            Site Ayarları
-          </div>
-          {!supabase && (
-            <div className="p-5 text-sm text-zinc-500">
-              Bu bölüm için Supabase ortam değişkenleri gerekiyor.
-            </div>
-          )}
-          <div className="divide-y divide-white/[.07]">
-            {settings
-              .filter(s => s.key !== "hero.backgroundImage") // Hide hero from general list
-              .map((setting) => (
-              <div
-                key={setting.key}
-                className="flex items-center justify-between gap-4 p-5"
-              >
-                <div>
-                  <p className="font-medium">{setting.key}</p>
-                  <p className="mt-1 text-xs text-zinc-500">
-                    {locale === "tr" ? setting.value_tr : setting.value_en}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => editSetting(setting)}
-                    className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:border-blue-500 hover:text-blue-400"
-                  >
-                    <Pencil size={16} />
-                  </button>
-                  <button
-                    onClick={() => deleteSetting(setting.key)}
-                    className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:border-red-500 hover:text-red-400"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
               </div>
-            ))}
+            </div>
           </div>
-        </div>
-      </div>
         </>
       )}
     </section>
